@@ -175,8 +175,6 @@ textarea:focus{outline:2px solid var(--acc)}
   <h3>Wie hast du das Training empfunden?</h3>
   <div class="hint">1 = sehr schlecht · 10 = perfekt</div>
   <div class="rgrid" id="rateGrid"></div>
-  <label class="tg"><input type="checkbox" id="cbdChk"> CBD genommen</label>
-  <label class="tg"><input type="checkbox" id="medChk"> Medikamente genommen</label>
   <button class="save" id="rateOk" style="margin-top:10px">Fertig</button>
   <button class="btn2" id="rateSkip" style="width:100%;margin-top:8px;color:var(--mute)">Überspringen</button>
 </div></div>
@@ -374,7 +372,7 @@ function renderHist(){
     const items=p.ex.filter(e=>s.entries[e.id]).map(e=>`<li><b>${e.name}</b><span>${s.entries[e.id].map(x=>`${fmtKg(num(x.kg)||0)}×${x.reps||"–"}`).join(" · ")}</span></li>`).join("");
     return `<details class="card sess"><summary><span><b>${fmtDate(s.date)}</b> &nbsp;<span class="tag">${p.name}</span></span><span style="color:var(--mute);font-size:13px">${Object.keys(s.entries).length} Übungen${s.dur?" · "+s.dur+" min":""}${s.rate?" · "+s.rate+"/10":""}</span></summary>
       <ul>${items}</ul>
-      ${s.rate?`<div class="hint" style="margin-top:8px">Gefühl ${s.rate}/10${s.cbd?" · CBD":""}${s.med?" · Medikamente":""}</div>`:""}
+      ${s.rate?`<div class="hint" style="margin-top:8px">Gefühl ${s.rate}/10</div>`:""}
       ${s.note?`<div class="hint" style="margin-top:8px">📝 ${esc(s.note)}</div>`:""}
       <button class="btn2" data-open="${s.id}">Bearbeiten</button> <button class="btn2" data-del="${s.id}">Löschen</button></details>`;
   }).join("");
@@ -512,7 +510,6 @@ let rateId=null,rateSel=null;
 function openRate(id){
   const cur=sessions[id];if(!cur)return;
   rateId=id;rateSel=cur.rate||null;
-  $("#cbdChk").checked=!!cur.cbd;$("#medChk").checked=!!cur.med;
   $("#rateGrid").innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-r="${n}" class="${n===rateSel?"on":""}">${n}</button>`).join("");
   $("#rateGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>{
     rateSel=+b.dataset.r;$("#rateGrid").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
@@ -523,12 +520,10 @@ function closeRate(){$("#rateModal").classList.add("hidden");rateId=null}
 $("#rateOk").onclick=()=>{
   if(!rateSel){$("#rateOk").textContent="Bitte 1–10 wählen";setTimeout(()=>{$("#rateOk").textContent="Fertig"},1500);return}
   const s=sessions[rateId];
-  if(s){s.rate=rateSel;s.cbd=$("#cbdChk").checked;s.med=$("#medChk").checked;saveLocal();renderHist()}
+  if(s){s.rate=rateSel;saveLocal();renderHist()}
   closeRate();
 };
 $("#rateSkip").onclick=()=>{
-  const s=sessions[rateId];
-  if(s){s.cbd=$("#cbdChk").checked;s.med=$("#medChk").checked;saveLocal()}
   closeRate();
 };
 
