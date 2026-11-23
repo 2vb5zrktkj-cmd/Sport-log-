@@ -105,13 +105,17 @@ textarea:focus{outline:2px solid var(--acc)}
 .tg{display:flex;align-items:center;gap:10px;padding:10px 2px;font-size:15px}
 .tg input{width:22px;height:22px}
 .tin{width:100%;margin-top:8px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px;font-family:inherit}
+.mach{display:inline-block;margin-top:6px;font-size:12px;color:var(--acc);background:var(--accsoft);padding:3px 9px;border-radius:99px;max-width:100%}
+.mach input{min-width:200px}
+.today b{font-size:18px}
+.today .l{font-size:13px;color:var(--mute);margin-top:4px}
 .hidden{display:none}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Oberkörper-Log</h1>
-  <div class="sub">Übung · Gewicht · Wiederholungen</div>
+  <h1>Training</h1>
+  <div class="sub">Tag A · Tag B · Pause</div>
 
   <div class="tabs" id="tabs">
     <button data-t="train" class="on">Training</button>
@@ -131,6 +135,7 @@ textarea:focus{outline:2px solid var(--acc)}
   </div></div>
 
   <section id="v-train">
+    <div class="card" id="todayCard" style="margin-top:0;margin-bottom:12px"></div>
     <button class="save" id="wStart">▶ Training beginnen</button>
     <div class="wl" id="wLast" style="margin:-4px 0 10px;text-align:center"></div>
     <div class="row">
@@ -151,6 +156,11 @@ textarea:focus{outline:2px solid var(--acc)}
       <div class="hint">Z. B. welches Gym, welche Maschinenmarke, Beschwerden, Wünsche. Ich lese die Notizen, wenn du mich zu Plan oder Training fragst.</div>
       <textarea id="noteIn" rows="3" placeholder="z. B. Heute im Gym mit Life Fitness Maschinen"></textarea>
       <button class="save" id="noteAdd" style="margin-top:8px">Notiz hinzufügen</button>
+    </div>
+    <div class="card">
+      <h3>Gym</h3>
+      <input class="tin" id="gymIn" placeholder="Name des Gyms" style="margin-top:0">
+      <div class="hint" style="margin-top:6px">Wird mit jeder Einheit gespeichert. Die Maschinennamen trägst du direkt unter der Übung ein.</div>
     </div>
     <div class="card">
       <h3>Daten</h3>
@@ -192,20 +202,18 @@ textarea:focus{outline:2px solid var(--acc)}
 </div></div>
 <script>
 const PLAN = {
-  A:{name:"Oberkörper A",sub:"Brust · Schulter · Trizeps",ex:[
+  A:{name:"Tag A",sub:"Drücken · Brust · Schulter · Trizeps",ex:[
     {id:"a1",name:"Brustpresse Maschine (flach)",hint:"Sitzend, Rücken angelehnt"},
-    {id:"a8",name:"Butterfly / Fly Maschine",hint:"Brust dehnen und zusammenführen, nicht pressen"},
-    {id:"a3",name:"Schulterpresse Maschine (einarmig, wenn möglich)",hint:"Schwächere Seite zuerst, Nacken locker"},
-    {id:"a5",name:"Seitheben einarmig Kabel",hint:"Schwächere Seite zuerst, gleiche Wdh. auf der anderen"},
-    {id:"a6",name:"Reverse Fly Maschine",hint:"Hintere Schulter, Ellbogen auf Schulterhöhe"},
-    {id:"a7",name:"Trizeps-Maschine (sitzend)",hint:"Isolation, volle Dehnung"}]},
-  B:{name:"Oberkörper B",sub:"Rücken · hint. Schulter · Bizeps",ex:[
-    {id:"b1",name:"Latzug breit zur Brust (Maschine/Kabel)",hint:"Nie hinter den Nacken, Oberschenkel unter dem Polster"},
-    {id:"b3",name:"Rudern Maschine brustgestützt (neutral, einarmig)",hint:"Schwächere Seite zuerst, Ellbogen am Körper"},
-    {id:"b8",name:"Pullover Maschine (oder Kabel-Pullover)",hint:"Breiter Rücken, Arme gestreckt, volle Dehnung"},
-    {id:"b5",name:"Face Pull sitzend (Kabel)",hint:"Hintere Schulter, Außenrotation"},
-    {id:"b9",name:"Seitheben Maschine (sitzend)",hint:"Seitliche Schulter, kein Schwung, kein Hochziehen"},
-    {id:"b7",name:"Bizeps-Maschine (Preacher)",hint:"Isolation"}]}
+    {id:"a8",name:"Butterfly (Fly) oder Schrägbank-Presse",hint:"Eine Variante wählen und immer beibehalten"},
+    {id:"a3",name:"Schulterpresse Maschine",hint:"Sitzend, Nacken locker"},
+    {id:"a5",name:"Seitheben (Maschine oder Kabel)",hint:"Seitliche Schulter, kein Schwung, nicht hochziehen"},
+    {id:"a7",name:"Trizeps-Maschine",hint:"Isolation, volle Dehnung"}]},
+  B:{name:"Tag B",sub:"Ziehen · Rücken · hint. Schulter · Bizeps",ex:[
+    {id:"b1",name:"Latzug (Maschine)",hint:"Zur Brust, nie hinter den Nacken"},
+    {id:"b3",name:"Rudern brustgestützt (Maschine)",hint:"Ellbogen am Körper, kein Schwung"},
+    {id:"b8",name:"Pullover-Maschine oder gerader Armzug (Kabel)",hint:"Breiter Rücken, volle Dehnung"},
+    {id:"b5",name:"Reverse Fly oder Face Pull",hint:"Hintere Schulter, eine Variante beibehalten"},
+    {id:"b7",name:"Bizeps-Maschine",hint:"Isolation"}]}
 };
 const SETS=[{lbl:"Satz 1<br>Top · 4–6"},{lbl:"Satz 2<br>~75 % · 6–8"}];
 const ALL={};Object.values(PLAN).forEach(p=>p.ex.forEach(e=>ALL[e.id]=e));
@@ -216,6 +224,11 @@ let sessions={};      // id -> {id,date,day,entries}
 let day="A", dirty=false, col=null;
 let notes={}, notesCol=null; const delNotes=new Set();
 const LSN="oberkoerper-log-notes-v1";
+const LSS="training-settings-v1";
+let settings={gym:"all inclusive Fitness Flughafen (Friedrichshafen)",machines:{}};
+function loadSettings(){try{const r=JSON.parse(localStorage.getItem(LSS)||"null");if(r){settings.gym=r.gym||settings.gym;settings.machines=r.machines||{}}}catch(e){}}
+function saveSettings(){try{localStorage.setItem(LSS,JSON.stringify(settings))}catch(e){}scheduleSync()}
+function mergeSettings(d){if(d&&d.settings){if(d.settings.gym)settings.gym=d.settings.gym;Object.assign(settings.machines,d.settings.machines||{});saveSettings();$("#gymIn").value=settings.gym}}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function loadNotesLocal(){try{const r=localStorage.getItem(LSN);if(r)notes=JSON.parse(r)||{}}catch(e){}}
 function saveNotesLocal(){try{localStorage.setItem(LSN,JSON.stringify(notes))}catch(e){}scheduleSync()}
@@ -262,10 +275,29 @@ const deleted=new Set();
 function setStatus(){$("#status").textContent="Gespeichert nur auf diesem iPhone · Sicherung: Tab Notizen → Daten"}
 
 /* ---------- Hilfen ---------- */
-function nextDay(){
-  const list=Object.values(sessions).sort((a,b)=>b.date.localeCompare(a.date));
-  if(!list.length)return "A";
-  return list[0].day==="A"?"B":"A";
+function daysAgo(ds){const [y,m,d]=ds.split("-").map(Number);const t=new Date();return Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-new Date(y,m-1,d))/86400000)}
+const agoTxt=n=>n<=0?"heute":n===1?"gestern":"vor "+n+" Tagen";
+function lastOf(k){return Object.values(sessions).filter(s=>s.day===k&&s.entries&&Object.keys(s.entries).length).sort((a,b)=>b.date.localeCompare(a.date))[0]||null}
+function lastAny(){return Object.values(sessions).filter(s=>s.entries&&Object.keys(s.entries).length).sort((a,b)=>b.date.localeCompare(a.date))[0]||null}
+/* Rhythmus: A → B → Pause → A … Ergebnis "A", "B", "P" (Pause) oder "D" (heute schon trainiert) */
+function planToday(){
+  const l=lastAny();if(!l)return "A";
+  const n=daysAgo(l.date);
+  if(n<=0)return "D";
+  if(l.day==="A")return "B";
+  return n===1?"P":"A";
+}
+function nextDay(){const t=planToday();return t==="B"?"B":"A"}
+function renderToday(){
+  const t=planToday(),l=lastAny();
+  let title,sub;
+  if(t==="D"){title="Heute erledigt ✓";sub="Nächstes Mal: "+(l.day==="A"?"Tag B":"Pause, danach Tag A")}
+  else if(t==="P"){title="Heute: Pause";sub="Erholung · locker Cardio ohne Beinbelastung möglich"}
+  else{title="Heute: "+PLAN[t].name;sub=PLAN[t].sub}
+  const ago=k=>{const x=lastOf(k);return x?agoTxt(daysAgo(x.date))+" ("+fmtDate(x.date)+")":"noch nie"};
+  $("#todayCard").innerHTML=`<div class="today"><b>${title}</b><div class="l">${sub}</div>
+    <div class="l" style="margin-top:8px">Tag A zuletzt: ${ago("A")}<br>Tag B zuletzt: ${ago("B")}</div>
+    <div class="l" style="margin-top:6px">Gym: ${esc(settings.gym)}</div></div>`;
 }
 function sid(){return $("#date").value+"_"+day}
 function lastFor(exId,exceptId){
@@ -276,6 +308,7 @@ function lastFor(exId,exceptId){
 
 /* ---------- Training ---------- */
 function renderDaySeg(){
+  renderToday();
   $("#daySeg").innerHTML=Object.keys(PLAN).map(k=>
     `<button data-d="${k}" class="${k===day?"on":""}">${PLAN[k].name}<small>${PLAN[k].sub}</small></button>`).join("");
   $("#daySeg").querySelectorAll("button").forEach(b=>b.onclick=()=>{day=b.dataset.d;dirty=false;renderDaySeg();renderForm()});
@@ -303,6 +336,7 @@ function renderForm(){
       <div class="bohint" data-boh></div>`;
     return `<div class="card" data-card="${e.id}">
       <h3>${e.name}</h3><div class="hint">${e.hint}</div>
+      <div class="mach" data-m="${e.id}">${esc(settings.machines[e.id]||"Maschine eintragen")}</div>
       <div class="last">${lastTxt}</div>
       <div class="sets">${rows}</div>
     </div>`;
@@ -344,7 +378,9 @@ async function save(){
     if(sessions[id]){deleted.add(id);delete sessions[id];saveLocal();if(col)col.doc(id).delete().catch(()=>{})}
     b.textContent="Nichts einzutragen";setTimeout(resetSaveBtn,1500);return;
   }
-  const doc={id,date:$("#date").value,day,entries,note};
+  const doc={id,date:$("#date").value,day,entries,note,gym:settings.gym};
+  const mm={};Object.keys(entries).forEach(k=>{if(settings.machines[k])mm[k]=settings.machines[k]});
+  if(Object.keys(mm).length)doc.mach=mm;
   const mins=Math.round(workoutMs()/60000);
   if(mins>0)doc.dur=mins;else if(sessions[id]&&sessions[id].dur)doc.dur=sessions[id].dur;
   if(wRunning)stopWorkout();
@@ -366,6 +402,7 @@ function spark(vals){
   return `<svg class="spark" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="var(--acc)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p=>p.join(",")).join(" ")}"/><circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="2.6" fill="var(--acc)"/></svg>`;
 }
 function renderHist(){
+  renderToday();
   const list=Object.values(sessions).sort((a,b)=>b.date.localeCompare(a.date)||b.day.localeCompare(a.day));
   if(!list.length){$("#v-hist").innerHTML=`<div class="empty">Noch keine Einheit gespeichert.<br>Trag im Tab „Training“ deine erste ein.</div>`;return}
   // Fortschritt je Übung: Top-Set-Gewicht (Satz 1) pro Einheit
@@ -406,7 +443,7 @@ function renderPlan(){
   const blk=k=>`<div class="card" style="margin-top:0;margin-bottom:12px"><h3>${PLAN[k].name} <span class="tag">${PLAN[k].sub}</span></h3><ol>${PLAN[k].ex.map(e=>`<li>${e.name}</li>`).join("")}</ol></div>`;
   $("#v-plan").innerHTML=blk("A")+blk("B")+`
   <div class="card" style="margin-top:0"><h3>So läuft's</h3>
-    <p><span class="pill">Rhythmus</span> OK A → UK → Pause → OK B → UK → Pause (A und B im Wechsel)</p>
+    <p><span class="pill">Rhythmus</span> Tag A → Tag B → Pause, solange das Bein pausiert. Später: Oberkörper → Unterkörper → Pause.</p>
     <p><span class="pill">Sätze</span> 2 Arbeitssätze pro Übung, jeder bis ans Limit</p>
     <ul style="padding-left:18px;margin:6px 0">
       <li><b>Satz 1:</b> nach dem Aufwärmen, Top-Gewicht, 4–6 Wdh. Nur diesen trägst du ein.</li>
@@ -416,13 +453,23 @@ function renderPlan(){
     <p><span class="pill">Steigern</span> Schaffst du im Top-Satz 6 Wdh. sauber → nächstes Mal +2,5 kg (Isolation: +1 kg). Bei weniger als 4 Wdh. Gewicht halten oder leicht senken.</p>
     <p><span class="pill">Reihenfolge</span> Grundübungen zuerst, Isolation danach. Ca. 60–70 min.</p>
     <p><span class="pill">Beinfrei</span> Alles geführt bzw. sitzend mit Rückenlehne oder Brustpolster, keine Übung mit Fußdruck oder Stand unter Last.</p>
-    <p><span class="pill">Schwerpunkt</span> Rücken und hintere Schulter: A hat Reverse Fly, B hat Latzug, Rudern und Pullover plus Face Pull.</p>
-    <p><span class="pill">Runde Schultern</span> Seitheben an beiden Tagen (A Kabel einarmig, B Maschine), dazu hintere Schulter an A und B.</p>
+    <p><span class="pill">Schwerpunkt</span> Rücken und hintere Schulter an Tag B, Seitheben und Brust an Tag A.</p>
+    <p><span class="pill">Vergleichbar</span> Im selben Gym immer dieselbe Maschine nehmen und den Namen unter der Übung eintragen.</p>
     <p><span class="pill">Schulter-Asymmetrie</span> Einarmige Übungen: schwächere Seite zuerst, die andere macht höchstens gleich viele Wdh. Eingetragen wird die schwächere Seite.</p>
     <p><span class="pill">Nacken</span> Kein Shrugging, kein Latzug hinter den Nacken, Schultern beim Heben nicht Richtung Ohren ziehen, Nacken neutral.</p>
-    <p><span class="pill">Dauer</span> ca. 60 min inkl. Aufwärmen: 6 Übungen × 2 Sätze, Pausen wie oben.</p>
+    <p><span class="pill">Dauer</span> ca. 50–60 min inkl. Aufwärmen: 5 Übungen × 2 Sätze, Pausen wie oben.</p>
   </div>`;
 }
+
+/* ---------- Maschinen ---------- */
+$("#form").addEventListener("click",e=>{
+  const m=e.target.closest(".mach");if(!m||m.querySelector("input"))return;
+  const id=m.dataset.m,inp=document.createElement("input");
+  inp.className="tin";inp.style.margin="0";inp.value=settings.machines[id]||"";inp.placeholder="z. B. Life Fitness Chest Press";
+  m.textContent="";m.appendChild(inp);inp.focus();
+  const done=()=>{const v=inp.value.trim();if(v)settings.machines[id]=v;else delete settings.machines[id];saveSettings();m.textContent=settings.machines[id]||"Maschine eintragen"};
+  inp.addEventListener("blur",done);inp.addEventListener("keydown",ev=>{if(ev.key==="Enter")inp.blur()});
+});
 
 /* ---------- Back-off ---------- */
 function updBo(card){
@@ -569,7 +616,7 @@ $("#syRestore").onclick=async()=>{
     const g=await ghFetch("GET");
     if(g.status!==200){syncMsg(g.status===404?"Noch keine Sicherung vorhanden":errText(g.status));return}
     const d=JSON.parse(unb64((await g.json()).content));
-    Object.assign(sessions,d.sessions||{});Object.assign(notes,d.notes||{});
+    Object.assign(sessions,d.sessions||{});Object.assign(notes,d.notes||{});mergeSettings(d);
     saveLocal();saveNotesLocal();renderHist();renderNotes();dirty=false;renderForm();syncMsg("Geladen ✓");
   }catch(e){syncMsg("Laden fehlgeschlagen")}
 };
@@ -615,11 +662,12 @@ async function addNote(){
   if(notesCol){try{await notesCol.doc(id).set(doc)}catch(e){setStatus(false)}}
 }
 $("#noteAdd").onclick=addNote;
+$("#gymIn").onchange=()=>{settings.gym=$("#gymIn").value.trim()||settings.gym;saveSettings();renderToday()};
 const dmsg=t=>{$("#dmsg").textContent=t;setTimeout(()=>{$("#dmsg").textContent=""},3000)};
-const allData=()=>JSON.stringify({v:1,exported:new Date().toISOString(),sessions,notes},null,1);
+const allData=()=>JSON.stringify({v:1,exported:new Date().toISOString(),settings,sessions,notes},null,1);
 $("#exp").onclick=()=>{try{const b=new Blob([allData()],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="training-log-"+todayStr()+".json";document.body.appendChild(a);a.click();a.remove();dmsg("Export gestartet")}catch(e){dmsg("Export nicht möglich, nutze Kopieren")}};
 $("#cpy").onclick=async()=>{try{await navigator.clipboard.writeText(allData());dmsg("Kopiert")}catch(e){dmsg("Kopieren nicht möglich, nutze Export")}};
-$("#imp").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());Object.assign(sessions,d.sessions||{});Object.assign(notes,d.notes||{});saveLocal();saveNotesLocal();renderHist();renderNotes();dirty=false;renderForm();dmsg("Importiert")}catch(x){dmsg("Datei ungültig")}e.target.value=""};
+$("#imp").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());Object.assign(sessions,d.sessions||{});Object.assign(notes,d.notes||{});mergeSettings(d);saveLocal();saveNotesLocal();renderHist();renderNotes();dirty=false;renderForm();dmsg("Importiert")}catch(x){dmsg("Datei ungültig")}e.target.value=""};
 $("#sessNote").addEventListener("input",()=>{dirty=true;resetSaveBtn()});
 
 /* ---------- Tabs ---------- */
@@ -635,7 +683,7 @@ $("#saveBtn").onclick=save;
 $("#date").addEventListener("change",()=>{dirty=false;renderForm()});
 
 /* ---------- Start ---------- */
-loadLocal();loadNotesLocal();renderNotes();
+loadLocal();loadNotesLocal();loadSettings();$("#gymIn").value=settings.gym;renderNotes();
 $("#date").value=todayStr();
 day=nextDay();
 renderDaySeg();renderForm();renderHist();renderPlan();setStatus(false);
