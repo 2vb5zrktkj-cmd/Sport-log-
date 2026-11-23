@@ -40,8 +40,6 @@ input[type=date]{padding:10px;border-radius:10px;border:1px solid var(--line);ba
 .last{font-size:12px;margin-top:6px;color:var(--acc)}
 .sets{margin-top:8px}
 .set{display:grid;grid-template-columns:62px 1fr 1fr 44px;gap:8px;align-items:center;margin-top:6px}
-.bo{display:grid;grid-template-columns:62px 1fr 44px;gap:8px;align-items:center;margin-top:6px}
-.bo.done .bov{opacity:.55}
 .bov{padding:10px 12px;border-radius:10px;background:var(--accsoft);color:var(--acc);font-weight:700;font-size:17px;text-align:right;min-height:44px;display:flex;align-items:center;justify-content:flex-end}
 .bov small{font-weight:500;font-size:12px;margin-left:6px;opacity:.8}
 .bohint{font-size:12px;color:var(--mute);margin-top:4px;min-height:0}
@@ -322,7 +320,7 @@ function renderForm(){
     const last=lastFor(e.id,id);
     const lastTxt=last?`Letztes Mal (${fmtDate(last.date)}): `+last.entries[e.id].map(s=>`${fmtKg(num(s.kg)||0)} × ${s.reps||"–"}`).join(" · "):"Noch kein Eintrag";
     const vals=(draft&&draft[e.id])||(cur&&cur.entries&&cur.entries[e.id])||[];
-    const v=vals[0]||{};
+    const v=vals[0]||{}, b=vals[1]||{};
     const ph=(last&&last.entries[e.id][0])||{};
     const rows=`<div class="set" data-ex="${e.id}" data-i="0">
         <div class="lbl">Satz 1<br>Top · bis Limit</div>
@@ -330,9 +328,10 @@ function renderForm(){
         <label><input inputmode="numeric" data-f="reps" value="${v.reps??""}" placeholder="${ph.reps??"Wdh"}"><span>Wdh</span></label>
         <button class="chk" type="button" aria-label="Satz fertig">✓</button>
       </div>
-      <div class="bo">
+      <div class="set bo" data-ex="${e.id}" data-i="1">
         <div class="lbl">Satz 2<br>Back-off</div>
-        <div class="bov" data-bov>–</div>
+        <label><input inputmode="decimal" data-f="kg" data-bokg value="${b.kg??""}" placeholder="kg"><span>kg</span></label>
+        <label><input inputmode="numeric" data-f="reps" value="${b.reps??""}" placeholder="6–8"><span>Wdh</span></label>
         <button class="chk" type="button" aria-label="Back-off fertig">✓</button>
       </div>
       <div class="bohint" data-boh></div>`;
@@ -345,7 +344,7 @@ function renderForm(){
     </div>`;
   }).join("")+'<div id="addExBox"><button class="btn2" id="addEx" style="margin:12px 0 0;color:var(--acc)">+ Übung hinzufügen</button></div>';
   $("#form").querySelectorAll("input").forEach(i=>i.addEventListener("input",()=>{dirty=true;resetSaveBtn()}));
-  $("#form").querySelectorAll(".card").forEach(updBo);
+  $("#form").querySelectorAll(".card").forEach(c=>updBo(c));
   $("#form").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
     const card=b.closest(".card"),sets=card.querySelector(".sets"),i=sets.children.length;
     const div=document.createElement("div");div.className="set";div.dataset.ex=b.dataset.add;div.dataset.i=i;
@@ -491,24 +490,27 @@ $("#form").addEventListener("click",e=>{
 });
 
 /* ---------- Back-off ---------- */
-function updBo(card){
-  const kg=num(card.querySelector('[data-f="kg"]').value), reps=num(card.querySelector('[data-f="reps"]').value);
-  const bov=card.querySelector("[data-bov]"), boh=card.querySelector("[data-boh]");
-  if(kg==null||kg<=0){bov.textContent="Gewicht in Satz 1 eintragen";bov.style.fontSize="13px";boh.textContent="";return}
+function updBo(card,fromBo){
+  const kg=num(card.querySelector('.set[data-i="0"] [data-f="kg"]').value), reps=num(card.querySelector('.set[data-i="0"] [data-f="reps"]').value);
+  const bi=card.querySelector("[data-bokg]"), boh=card.querySelector("[data-boh]");
+  if(fromBo)return;
+  if(kg==null||kg<=0){bi.placeholder="kg";boh.textContent="";bi.dataset.sug="";return}
   const r=(reps!=null&&reps>=1)?Math.min(reps,15):5;       // ohne Wdh: Annahme 5
   const rm=kg*(1+r/30);                                     // geschätztes 1RM (Epley)
   const r2=x=>Math.round(x/2.5)*2.5;
-  // Back-off: Gewicht für ~7 Wdh, minus ~10 % Ermüdung, zwischen 60 % und 100 % des Top-Gewichts
+  // Vorschlag: Gewicht für ~7 Wdh, minus ~10 % Ermüdung, zwischen 60 % und 100 % des Top-Gewichts
   const bo=Math.max(2.5,r2(Math.min(kg,Math.max(kg*0.6,rm/(1+7/30)*0.9))));
-  bov.style.fontSize="";
-  bov.innerHTML=`${fmtKg(bo)} kg<small>× 6–8 Wdh</small>`;
-  if(reps==null||reps<1){boh.textContent="Wdh eintragen, dann passt sich der Back-off an.";return}
-  const nxt=r2(rm/(1+5/30));
-  boh.textContent=nxt>kg?`Top-Satz war leicht: nächstes Mal ca. ${fmtKg(nxt)} kg für 4–6 Wdh.`
-    :nxt<kg?`Top-Satz war schwer: nächstes Mal ca. ${fmtKg(nxt)} kg für 4–6 Wdh.`
-    :"Gewicht passt, nächstes Mal halten (bei 6 Wdh steigern).";
+  bi.placeholder=fmtKg(bo);bi.dataset.sug=bo;
+  let t=`Back-off-Vorschlag: ${fmtKg(bo)} kg × 6–8 Wdh (Feld anpassen, wenn du anders machst).`;
+  if(reps!=null&&reps>=1){
+    const nxt=r2(rm/(1+5/30));
+    t+=nxt>kg?` Top-Satz war leicht: nächstes Mal ca. ${fmtKg(nxt)} kg.`
+      :nxt<kg?` Top-Satz war schwer: nächstes Mal ca. ${fmtKg(nxt)} kg.`
+      :" Gewicht passt, nächstes Mal halten (bei 6 Wdh steigern).";
+  }
+  boh.textContent=t;
 }
-$("#form").addEventListener("input",e=>{const c=e.target.closest(".card");if(c)updBo(c)});
+$("#form").addEventListener("input",e=>{const c=e.target.closest(".card");if(c)updBo(c,!!e.target.closest(".bo"))});
 
 /* ---------- Timer ---------- */
 let wRunning=false,wStart=0,wElapsed=0;
@@ -580,6 +582,7 @@ $("#form").addEventListener("click",e=>{
   const b=e.target.closest(".chk");if(!b)return;
   const row=b.closest(".set,.bo"),on=!row.classList.contains("done");
   row.classList.toggle("done",on);b.classList.toggle("on",on);
+  if(on&&row.classList.contains("bo")){const bi=row.querySelector("[data-bokg]");if(bi&&!bi.value.trim()&&bi.dataset.sug)bi.value=fmtKg(+bi.dataset.sug)}
   if(on)startRest();
 });
 
