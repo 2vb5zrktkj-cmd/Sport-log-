@@ -104,6 +104,7 @@ textarea:focus{outline:2px solid var(--acc)}
 .rgrid button.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .tg{display:flex;align-items:center;gap:10px;padding:10px 2px;font-size:15px}
 .tg input{width:22px;height:22px}
+.tin{width:100%;margin-top:8px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px;font-family:inherit}
 .hidden{display:none}
 </style>
 </head>
@@ -160,6 +161,17 @@ textarea:focus{outline:2px solid var(--acc)}
         <label class="btn2" style="margin:0;color:var(--acc);cursor:pointer">Import<input type="file" id="imp" accept=".json,application/json" style="display:none"></label>
       </div>
       <div class="hint" id="dmsg" style="margin-top:8px"></div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+        <b style="font-size:14px">Automatische Sicherung (GitHub)</b>
+        <div class="hint">Jede Änderung wird in ein privates GitHub-Repo gesichert. Der Zugangsschlüssel (Token) bleibt nur auf diesem iPhone.</div>
+        <input class="tin" id="syRepo" placeholder="dein-name/repo-name" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+        <input class="tin" id="syTok" type="password" placeholder="Token einfügen" autocomplete="off" autocapitalize="none">
+        <div class="row" style="margin-top:8px">
+          <button class="btn2" id="sySave" style="margin:0;color:var(--acc)">Verbinden &amp; sichern</button>
+          <button class="btn2" id="syRestore" style="margin:0;color:var(--acc)">Daten laden</button>
+        </div>
+        <div class="hint" id="syncMsg" style="margin-top:8px"></div>
+      </div>
     </div>
     <div id="noteList"></div>
   </section>
@@ -206,7 +218,7 @@ let notes={}, notesCol=null; const delNotes=new Set();
 const LSN="oberkoerper-log-notes-v1";
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function loadNotesLocal(){try{const r=localStorage.getItem(LSN);if(r)notes=JSON.parse(r)||{}}catch(e){}}
-function saveNotesLocal(){try{localStorage.setItem(LSN,JSON.stringify(notes))}catch(e){}}
+function saveNotesLocal(){try{localStorage.setItem(LSN,JSON.stringify(notes))}catch(e){}scheduleSync()}
 
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const fmtDate=s=>{const [y,m,d]=s.split("-");return d+"."+m+"."+y.slice(2)};
@@ -215,7 +227,7 @@ const fmtKg=n=>String(Math.round(n*10)/10).replace(".",",");
 
 /* ---------- Speicher ---------- */
 function loadLocal(){try{const r=localStorage.getItem(LS);if(r)sessions=JSON.parse(r)||{}}catch(e){}}
-function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(sessions))}catch(e){}}
+function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(sessions))}catch(e){}scheduleSync()}
 async function initDb(){
   try{
     if(!(window.claude&&claude.use))return;
@@ -504,6 +516,65 @@ $("#form").addEventListener("click",e=>{
   row.classList.toggle("done",on);b.classList.toggle("on",on);
   if(on)startRest();
 });
+
+/* ---------- GitHub-Sicherung ---------- */
+const SYNC_LS="training-sync-v1";
+let syncTimer=null,syncBusy=false,syncAgain=false,syncPending=false;
+function syncCfg(){try{const c=JSON.parse(localStorage.getItem(SYNC_LS)||"null");return c&&c.repo&&c.token?c:null}catch(e){return null}}
+function syncMsg(t){const el=$("#syncMsg");if(el)el.textContent=t}
+const b64=x=>btoa(unescape(encodeURIComponent(x)));
+const unb64=x=>decodeURIComponent(escape(atob(x.replace(/\s/g,""))));
+function ghFetch(method,body){
+  const c=syncCfg();
+  const h={"Authorization":"Bearer "+c.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
+  if(body)h["Content-Type"]="application/json";
+  return fetch("https://api.github.com/repos/"+c.repo+"/contents/data.json",{method,headers:h,body:body?JSON.stringify(body):undefined});
+}
+const errText=st=>st===401?"Token ungültig oder abgelaufen":st===403?"Token darf nicht schreiben (Contents: Read and write nötig)":st===404?"Repo nicht gefunden oder Token ohne Zugriff auf das Repo":"Fehler "+st;
+async function pushNow(){
+  const c=syncCfg();if(!c)return false;
+  if(!Object.keys(sessions).length&&!Object.keys(notes).length){syncMsg("Noch nichts zu sichern");return false}
+  if(syncBusy){syncAgain=true;return false}
+  syncBusy=true;syncMsg("Sichere …");let ok=false;
+  try{
+    for(let i=0;i<3&&!ok;i++){
+      const g=await ghFetch("GET");let sha;
+      if(g.status===200)sha=(await g.json()).sha;else if(g.status!==404){syncMsg(errText(g.status));break}
+      const body={message:"Update "+new Date().toISOString(),content:b64(allData())};if(sha)body.sha=sha;
+      const p=await ghFetch("PUT",body);
+      if(p.status===200||p.status===201){ok=true;syncPending=false;syncMsg("Gesichert ✓ "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}))}
+      else if(p.status===409||p.status===422){continue}
+      else{syncMsg(errText(p.status));break}
+    }
+  }catch(e){syncMsg("Keine Verbindung – wird später gesichert")}
+  syncBusy=false;
+  if(syncAgain){syncAgain=false;pushNow()}
+  return ok;
+}
+function scheduleSync(){if(!syncCfg())return;syncPending=true;clearTimeout(syncTimer);syncTimer=setTimeout(pushNow,1500)}
+addEventListener("online",()=>{if(syncPending)pushNow()});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&syncPending)pushNow()});
+$("#sySave").onclick=async()=>{
+  const repo=$("#syRepo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
+  const tok=$("#syTok").value.trim()||(syncCfg()||{}).token||"";
+  if(!/^[\w.-]+\/[\w.-]+$/.test(repo)||!tok){syncMsg("Repo (name/repo) und Token eintragen");return}
+  try{localStorage.setItem(SYNC_LS,JSON.stringify({repo,token:tok}))}catch(e){}
+  $("#syTok").value="";$("#syTok").placeholder="Token gespeichert";
+  if(!Object.keys(sessions).length&&!Object.keys(notes).length){syncMsg("Verbunden. Gesichert wird ab der ersten Einheit.");return}
+  await pushNow();
+};
+$("#syRestore").onclick=async()=>{
+  if(!syncCfg()){syncMsg("Erst verbinden");return}
+  try{
+    const g=await ghFetch("GET");
+    if(g.status!==200){syncMsg(g.status===404?"Noch keine Sicherung vorhanden":errText(g.status));return}
+    const d=JSON.parse(unb64((await g.json()).content));
+    Object.assign(sessions,d.sessions||{});Object.assign(notes,d.notes||{});
+    saveLocal();saveNotesLocal();renderHist();renderNotes();dirty=false;renderForm();syncMsg("Geladen ✓");
+  }catch(e){syncMsg("Laden fehlgeschlagen")}
+};
+$("#syRepo").value=(syncCfg()||{}).repo||"";
+if(syncCfg())$("#syTok").placeholder="Token gespeichert";
 
 /* ---------- Bewertung ---------- */
 let rateId=null,rateSel=null;
