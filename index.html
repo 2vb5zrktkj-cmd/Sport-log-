@@ -95,6 +95,15 @@ textarea:focus{outline:2px solid var(--acc)}
 .note{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .note p{margin:0;font-size:14px;white-space:pre-wrap;word-break:break-word}
 .note small{color:var(--mute);font-size:11px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.modal.hidden{display:none}
+.mbox{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.mbox h3{margin:0 0 2px;font-size:18px}
+.rgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0}
+.rgrid button{padding:14px 0;border-radius:11px;border:1px solid var(--line);background:var(--input);color:var(--ink);font:700 18px system-ui;font-family:inherit}
+.rgrid button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.tg{display:flex;align-items:center;gap:10px;padding:10px 2px;font-size:15px}
+.tg input{width:22px;height:22px}
 .hidden{display:none}
 </style>
 </head>
@@ -162,6 +171,15 @@ textarea:focus{outline:2px solid var(--acc)}
 
 <div class="bar" id="saveBar"><div><button class="save" id="saveBtn">Training speichern</button></div></div>
 
+<div class="modal hidden" id="rateModal"><div class="mbox">
+  <h3>Wie hast du das Training empfunden?</h3>
+  <div class="hint">1 = sehr schlecht · 10 = perfekt</div>
+  <div class="rgrid" id="rateGrid"></div>
+  <label class="tg"><input type="checkbox" id="cbdChk"> CBD genommen</label>
+  <label class="tg"><input type="checkbox" id="medChk"> Medikamente genommen</label>
+  <button class="save" id="rateOk" style="margin-top:10px">Fertig</button>
+  <button class="btn2" id="rateSkip" style="width:100%;margin-top:8px;color:var(--mute)">Überspringen</button>
+</div></div>
 <script>
 const PLAN = {
   A:{name:"Oberkörper A",sub:"Brust · Schulter · Trizeps",ex:[
@@ -326,6 +344,7 @@ async function save(){
   if(col){try{await col.doc(id).set(doc)}catch(e){setStatus(false)}}
   dirty=false;
   b.textContent="Gespeichert ✓";b.classList.add("done");
+  openRate(id);
   renderHist();
 }
 
@@ -353,8 +372,9 @@ function renderHist(){
   const sess=list.map(s=>{
     const p=PLAN[s.day];
     const items=p.ex.filter(e=>s.entries[e.id]).map(e=>`<li><b>${e.name}</b><span>${s.entries[e.id].map(x=>`${fmtKg(num(x.kg)||0)}×${x.reps||"–"}`).join(" · ")}</span></li>`).join("");
-    return `<details class="card sess"><summary><span><b>${fmtDate(s.date)}</b> &nbsp;<span class="tag">${p.name}</span></span><span style="color:var(--mute);font-size:13px">${Object.keys(s.entries).length} Übungen${s.dur?" · "+s.dur+" min":""}</span></summary>
+    return `<details class="card sess"><summary><span><b>${fmtDate(s.date)}</b> &nbsp;<span class="tag">${p.name}</span></span><span style="color:var(--mute);font-size:13px">${Object.keys(s.entries).length} Übungen${s.dur?" · "+s.dur+" min":""}${s.rate?" · "+s.rate+"/10":""}</span></summary>
       <ul>${items}</ul>
+      ${s.rate?`<div class="hint" style="margin-top:8px">Gefühl ${s.rate}/10${s.cbd?" · CBD":""}${s.med?" · Medikamente":""}</div>`:""}
       ${s.note?`<div class="hint" style="margin-top:8px">📝 ${esc(s.note)}</div>`:""}
       <button class="btn2" data-open="${s.id}">Bearbeiten</button> <button class="btn2" data-del="${s.id}">Löschen</button></details>`;
   }).join("");
@@ -486,6 +506,31 @@ $("#form").addEventListener("click",e=>{
   row.classList.toggle("done",on);b.classList.toggle("on",on);
   if(on)startRest();
 });
+
+/* ---------- Bewertung ---------- */
+let rateId=null,rateSel=null;
+function openRate(id){
+  const cur=sessions[id];if(!cur)return;
+  rateId=id;rateSel=cur.rate||null;
+  $("#cbdChk").checked=!!cur.cbd;$("#medChk").checked=!!cur.med;
+  $("#rateGrid").innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-r="${n}" class="${n===rateSel?"on":""}">${n}</button>`).join("");
+  $("#rateGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    rateSel=+b.dataset.r;$("#rateGrid").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  });
+  $("#rateModal").classList.remove("hidden");
+}
+function closeRate(){$("#rateModal").classList.add("hidden");rateId=null}
+$("#rateOk").onclick=()=>{
+  if(!rateSel){$("#rateOk").textContent="Bitte 1–10 wählen";setTimeout(()=>{$("#rateOk").textContent="Fertig"},1500);return}
+  const s=sessions[rateId];
+  if(s){s.rate=rateSel;s.cbd=$("#cbdChk").checked;s.med=$("#medChk").checked;saveLocal();renderHist()}
+  closeRate();
+};
+$("#rateSkip").onclick=()=>{
+  const s=sessions[rateId];
+  if(s){s.cbd=$("#cbdChk").checked;s.med=$("#medChk").checked;saveLocal()}
+  closeRate();
+};
 
 /* ---------- Notizen ---------- */
 function renderNotes(){
