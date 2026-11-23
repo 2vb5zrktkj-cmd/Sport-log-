@@ -166,19 +166,17 @@ textarea:focus{outline:2px solid var(--acc)}
 const PLAN = {
   A:{name:"Oberkörper A",sub:"Brust · Schulter · Trizeps",ex:[
     {id:"a1",name:"Brustpresse Maschine (flach)",hint:"Sitzend, Rücken angelehnt"},
-    {id:"a2",name:"Schrägbank-Presse Maschine",hint:"Obere Brust"},
+    {id:"a8",name:"Butterfly / Fly Maschine",hint:"Brust dehnen und zusammenführen, nicht pressen"},
     {id:"a3",name:"Schulterpresse Maschine (einarmig, wenn möglich)",hint:"Schwächere Seite zuerst, Nacken locker"},
-    {id:"a4",name:"Seitheben Maschine (sitzend)",hint:"Seitliche Schulter, kein Schwung, kein Hochziehen"},
     {id:"a5",name:"Seitheben einarmig Kabel",hint:"Schwächere Seite zuerst, gleiche Wdh. auf der anderen"},
     {id:"a6",name:"Reverse Fly Maschine",hint:"Hintere Schulter, Ellbogen auf Schulterhöhe"},
     {id:"a7",name:"Trizeps-Maschine (sitzend)",hint:"Isolation, volle Dehnung"}]},
   B:{name:"Oberkörper B",sub:"Rücken · hint. Schulter · Bizeps",ex:[
     {id:"b1",name:"Latzug breit zur Brust (Maschine/Kabel)",hint:"Nie hinter den Nacken, Oberschenkel unter dem Polster"},
-    {id:"b2",name:"Rudern Maschine brustgestützt (breit)",hint:"Oberer Rücken, hintere Schulter"},
-    {id:"b3",name:"Rudern Maschine einarmig (neutral)",hint:"Schwächere Seite zuerst, Ellbogen am Körper"},
-    {id:"b4",name:"Latzug neutral einarmig",hint:"Schwächere Seite zuerst, Schulterblatt führt"},
+    {id:"b3",name:"Rudern Maschine brustgestützt (neutral, einarmig)",hint:"Schwächere Seite zuerst, Ellbogen am Körper"},
+    {id:"b8",name:"Pullover Maschine (oder Kabel-Pullover)",hint:"Breiter Rücken, Arme gestreckt, volle Dehnung"},
     {id:"b5",name:"Face Pull sitzend (Kabel)",hint:"Hintere Schulter, Außenrotation"},
-    {id:"b6",name:"Seitheben einarmig Kabel",hint:"Seitliche Schulter, schwächere Seite zuerst"},
+    {id:"b9",name:"Seitheben Maschine (sitzend)",hint:"Seitliche Schulter, kein Schwung, kein Hochziehen"},
     {id:"b7",name:"Bizeps-Maschine (Preacher)",hint:"Isolation"}]}
 };
 const SETS=[{lbl:"Satz 1<br>Top · 4–6"},{lbl:"Satz 2<br>~75 % · 6–8"}];
@@ -388,11 +386,11 @@ function renderPlan(){
     <p><span class="pill">Steigern</span> Schaffst du im Top-Satz 6 Wdh. sauber → nächstes Mal +2,5 kg (Isolation: +1 kg). Bei weniger als 4 Wdh. Gewicht halten oder leicht senken.</p>
     <p><span class="pill">Reihenfolge</span> Grundübungen zuerst, Isolation danach. Ca. 60–70 min.</p>
     <p><span class="pill">Beinfrei</span> Alles geführt bzw. sitzend mit Rückenlehne oder Brustpolster, keine Übung mit Fußdruck oder Stand unter Last.</p>
-    <p><span class="pill">Schwerpunkt</span> Rücken und hintere Schulter: A hat Reverse Fly, B hat 4 Zugübungen plus Face Pull.</p>
-    <p><span class="pill">Runde Schultern</span> Seitheben an beiden Tagen (Maschine + Kabel), dazu hintere Schulter an A und B.</p>
+    <p><span class="pill">Schwerpunkt</span> Rücken und hintere Schulter: A hat Reverse Fly, B hat Latzug, Rudern und Pullover plus Face Pull.</p>
+    <p><span class="pill">Runde Schultern</span> Seitheben an beiden Tagen (A Kabel einarmig, B Maschine), dazu hintere Schulter an A und B.</p>
     <p><span class="pill">Schulter-Asymmetrie</span> Einarmige Übungen: schwächere Seite zuerst, die andere macht höchstens gleich viele Wdh. Eingetragen wird die schwächere Seite.</p>
     <p><span class="pill">Nacken</span> Kein Shrugging, kein Latzug hinter den Nacken, Schultern beim Heben nicht Richtung Ohren ziehen, Nacken neutral.</p>
-    <p><span class="pill">Dauer</span> ca. 60 min inkl. Aufwärmen: 7 Übungen × 2 Sätze, Pausen wie oben.</p>
+    <p><span class="pill">Dauer</span> ca. 60 min inkl. Aufwärmen: 6 Übungen × 2 Sätze, Pausen wie oben.</p>
   </div>`;
 }
 
