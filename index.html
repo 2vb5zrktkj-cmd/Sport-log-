@@ -225,10 +225,12 @@ let day="A", dirty=false, col=null;
 let notes={}, notesCol=null; const delNotes=new Set();
 const LSN="oberkoerper-log-notes-v1";
 const LSS="training-settings-v1";
-let settings={gym:"all inclusive Fitness Flughafen (Friedrichshafen)",machines:{}};
-function loadSettings(){try{const r=JSON.parse(localStorage.getItem(LSS)||"null");if(r){settings.gym=r.gym||settings.gym;settings.machines=r.machines||{}}}catch(e){}}
+let settings={gym:"all inclusive Fitness Flughafen (Friedrichshafen)",machines:{},exnotes:{},custom:{A:[],B:[]}};
+let draft=null;
+function loadSettings(){try{const r=JSON.parse(localStorage.getItem(LSS)||"null");if(r){settings.gym=r.gym||settings.gym;settings.machines=r.machines||{};settings.exnotes=r.exnotes||{};settings.custom={A:(r.custom&&r.custom.A)||[],B:(r.custom&&r.custom.B)||[]}}}catch(e){}}
+function applyCustom(){["A","B"].forEach(k=>(settings.custom[k]||[]).forEach(c=>{const L=PLAN[k].ex,i=L.findIndex(y=>y.id===c.id);if(i<0)L.push(c);else L[i]=c;ALL[c.id]=c}))}
 function saveSettings(){try{localStorage.setItem(LSS,JSON.stringify(settings))}catch(e){}scheduleSync()}
-function mergeSettings(d){if(d&&d.settings){if(d.settings.gym)settings.gym=d.settings.gym;Object.assign(settings.machines,d.settings.machines||{});saveSettings();$("#gymIn").value=settings.gym}}
+function mergeSettings(d){if(d&&d.settings){const x=d.settings;if(x.gym)settings.gym=x.gym;Object.assign(settings.machines,x.machines||{});Object.assign(settings.exnotes,x.exnotes||{});["A","B"].forEach(k=>{(x.custom&&x.custom[k]||[]).forEach(c=>{const L=settings.custom[k],i=L.findIndex(y=>y.id===c.id);if(i<0)L.push(c);else L[i]=c})});applyCustom();saveSettings();$("#gymIn").value=settings.gym}}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function loadNotesLocal(){try{const r=localStorage.getItem(LSN);if(r)notes=JSON.parse(r)||{}}catch(e){}}
 function saveNotesLocal(){try{localStorage.setItem(LSN,JSON.stringify(notes))}catch(e){}scheduleSync()}
@@ -315,11 +317,11 @@ function renderDaySeg(){
 }
 function renderForm(){
   const id=sid(), cur=sessions[id], p=PLAN[day];
-  $("#sessNote").value=(cur&&cur.note)||"";
-  $("#form").innerHTML=p.ex.map(e=>{
+  if(!draft)$("#sessNote").value=(cur&&cur.note)||"";
+  $("#form").innerHTML=p.ex.filter(e=>!e.hidden).map(e=>{
     const last=lastFor(e.id,id);
     const lastTxt=last?`Letztes Mal (${fmtDate(last.date)}): `+last.entries[e.id].map(s=>`${fmtKg(num(s.kg)||0)} × ${s.reps||"–"}`).join(" · "):"Noch kein Eintrag";
-    const vals=(cur&&cur.entries&&cur.entries[e.id])||[];
+    const vals=(draft&&draft[e.id])||(cur&&cur.entries&&cur.entries[e.id])||[];
     const v=vals[0]||{};
     const ph=(last&&last.entries[e.id][0])||{};
     const rows=`<div class="set" data-ex="${e.id}" data-i="0">
@@ -336,11 +338,12 @@ function renderForm(){
       <div class="bohint" data-boh></div>`;
     return `<div class="card" data-card="${e.id}">
       <h3>${e.name}</h3><div class="hint">${e.hint}</div>
-      <div class="mach" data-m="${e.id}">${esc(settings.machines[e.id]||"Maschine eintragen")}</div>
+      <div class="mach" data-m="${e.id}">${esc(settings.machines[e.id]||"Maschine eintragen")}</div> <div class="mach" data-s="${e.id}" style="background:var(--input);color:var(--mute)">${esc(settings.exnotes[e.id]||"Einstellung eintragen (z. B. Sitzhöhe)")}</div>
+      ${e.custom?`<button class="btn2" data-rm="${e.id}" style="margin:8px 0 0;float:right">Entfernen</button>`:""}
       <div class="last">${lastTxt}</div>
       <div class="sets">${rows}</div>
     </div>`;
-  }).join("");
+  }).join("")+'<div id="addExBox"><button class="btn2" id="addEx" style="margin:12px 0 0;color:var(--acc)">+ Übung hinzufügen</button></div>';
   $("#form").querySelectorAll("input").forEach(i=>i.addEventListener("input",()=>{dirty=true;resetSaveBtn()}));
   $("#form").querySelectorAll(".card").forEach(updBo);
   $("#form").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
@@ -381,6 +384,8 @@ async function save(){
   const doc={id,date:$("#date").value,day,entries,note,gym:settings.gym};
   const mm={};Object.keys(entries).forEach(k=>{if(settings.machines[k])mm[k]=settings.machines[k]});
   if(Object.keys(mm).length)doc.mach=mm;
+  const ee={};Object.keys(entries).forEach(k=>{if(settings.exnotes[k])ee[k]=settings.exnotes[k]});
+  if(Object.keys(ee).length)doc.einst=ee;
   const mins=Math.round(workoutMs()/60000);
   if(mins>0)doc.dur=mins;else if(sessions[id]&&sessions[id].dur)doc.dur=sessions[id].dur;
   if(wRunning)stopWorkout();
@@ -440,7 +445,7 @@ function renderHist(){
 
 /* ---------- Plan ---------- */
 function renderPlan(){
-  const blk=k=>`<div class="card" style="margin-top:0;margin-bottom:12px"><h3>${PLAN[k].name} <span class="tag">${PLAN[k].sub}</span></h3><ol>${PLAN[k].ex.map(e=>`<li>${e.name}</li>`).join("")}</ol></div>`;
+  const blk=k=>`<div class="card" style="margin-top:0;margin-bottom:12px"><h3>${PLAN[k].name} <span class="tag">${PLAN[k].sub}</span></h3><ol>${PLAN[k].ex.filter(e=>!e.hidden).map(e=>`<li>${e.name}</li>`).join("")}</ol></div>`;
   $("#v-plan").innerHTML=blk("A")+blk("B")+`
   <div class="card" style="margin-top:0"><h3>So läuft's</h3>
     <p><span class="pill">Rhythmus</span> Tag A → Tag B → Pause, solange das Bein pausiert. Später: Oberkörper → Unterkörper → Pause.</p>
@@ -461,13 +466,27 @@ function renderPlan(){
   </div>`;
 }
 
-/* ---------- Maschinen ---------- */
+/* ---------- Maschinen, Einstellungen, eigene Übungen ---------- */
+function rerender(){draft=collect();renderForm();draft=null}
 $("#form").addEventListener("click",e=>{
+  if(e.target.closest("#addEx")){
+    $("#addExBox").innerHTML=`<input class="tin" id="newEx" placeholder="Name der Übung, z. B. Schrägbank-Presse"><div class="row" style="margin-top:8px"><button class="btn2" id="newExOk" style="margin:0;color:var(--acc)">Hinzufügen</button><button class="btn2" id="newExNo" style="margin:0;color:var(--mute)">Abbrechen</button></div>`;
+    $("#newEx").focus();return}
+  if(e.target.closest("#newExNo")){rerender();return}
+  if(e.target.closest("#newExOk")){
+    const n=$("#newEx").value.trim();if(!n)return;
+    settings.custom[day].push({id:"c"+Date.now().toString(36),name:n,hint:"Eigene Übung",custom:true});
+    applyCustom();saveSettings();rerender();return}
+  const rm=e.target.closest("[data-rm]");
+  if(rm){const c=settings.custom[day].find(y=>y.id===rm.dataset.rm);if(c){c.hidden=true;saveSettings();rerender()}return}
   const m=e.target.closest(".mach");if(!m||m.querySelector("input"))return;
-  const id=m.dataset.m,inp=document.createElement("input");
-  inp.className="tin";inp.style.margin="0";inp.value=settings.machines[id]||"";inp.placeholder="z. B. Life Fitness Chest Press";
+  const isS=m.hasAttribute("data-s"),id=isS?m.dataset.s:m.dataset.m,store=isS?settings.exnotes:settings.machines;
+  const empty=isS?"Einstellung eintragen (z. B. Sitzhöhe)":"Maschine eintragen";
+  const inp=document.createElement("input");
+  inp.className="tin";inp.style.margin="0";inp.value=store[id]||"";
+  inp.placeholder=isS?"z. B. Sitz 4, Polster 3, Kabel Stufe 7":"z. B. Life Fitness Chest Press";
   m.textContent="";m.appendChild(inp);inp.focus();
-  const done=()=>{const v=inp.value.trim();if(v)settings.machines[id]=v;else delete settings.machines[id];saveSettings();m.textContent=settings.machines[id]||"Maschine eintragen"};
+  const done=()=>{const v=inp.value.trim();if(v)store[id]=v;else delete store[id];saveSettings();m.textContent=store[id]||empty};
   inp.addEventListener("blur",done);inp.addEventListener("keydown",ev=>{if(ev.key==="Enter")inp.blur()});
 });
 
@@ -683,7 +702,7 @@ $("#saveBtn").onclick=save;
 $("#date").addEventListener("change",()=>{dirty=false;renderForm()});
 
 /* ---------- Start ---------- */
-loadLocal();loadNotesLocal();loadSettings();$("#gymIn").value=settings.gym;renderNotes();
+loadLocal();loadNotesLocal();loadSettings();applyCustom();$("#gymIn").value=settings.gym;renderNotes();
 $("#date").value=todayStr();
 day=nextDay();
 renderDaySeg();renderForm();renderHist();renderPlan();setStatus(false);
